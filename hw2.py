@@ -5,6 +5,9 @@
 # Date: 07/04/2022
 # Name Surname: Adel Abbas
 # Registration number: csdp1270
+#
+# run:
+#   python3 hw2.py
 # --------------------------------
 
 import os
@@ -26,7 +29,7 @@ def processImage(filename, data="./", out="./"):
     print(f"Processing {filename}...")
     if filename.endswith("jpg"):
         img0 = readImage(os.path.join(data, filename))
-
+        writeImage(img0, os.path.join(out, filename+"_greyscale.jpg"))
         print(" Applying Gaussian smoothing")
         h = getGaussianKernel(1)
         img1 = myImageFilter(img0, h)
@@ -285,7 +288,7 @@ def getGaussianKernel(sigma):
     hsize = 2 * math.ceil(3 * sigma) + 1
     x = np.linspace(- (hsize//2), hsize // 2, hsize)
     xy, yx = np.meshgrid(x, x)  # returns 2 matrices of distances to the
-    # center pixel on the x and y axis
+                                # center pixel on the x and y axis
     ii = np.square(xy)
     jj = np.square(yx)
     kernel = np.exp(-0.5 * (ii + jj) / (sigma**2))
