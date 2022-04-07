@@ -1,7 +1,17 @@
+#!/usr/bin/env python
+
+# ---------------------------------
+# CS472 - Assignment 2
+# Date: 07/04/2022
+# Name Surname: Adel Abbas
+# Registration number: csdp1270
+# --------------------------------
+
 import os
 import cv2 as cv
 import numpy as np
 import math
+
 
 def checkIfFileExists(filename):
     return os.path.isfile(filename)
@@ -14,11 +24,12 @@ def readImage(filename):
 def writeImage(img, filename):
     cv.imwrite(filename, img)
 
+
 def processImage(filename, data="./", out="./"):
     print("Processing ", filename)
     if filename.endswith("jpg"):
         img0 = readImage(os.path.join(data, filename))
-        
+
         h = getGaussianKernel(1)
 
         img1 = myImageFilter(img0, h)
@@ -29,7 +40,7 @@ def processImage(filename, data="./", out="./"):
         gx = myImageFilter(img1, sobelx)
         writeImage(gx, os.path.join(out, filename+"_gx.jpg"))
         gy = myImageFilter(img1, sobely)
-        writeImage(gy, os.path.join(out, filename+"_gy.jpg"))       
+        writeImage(gy, os.path.join(out, filename+"_gy.jpg"))
 
         gradient, orientation = getGradient(img1)
         writeImage(gradient, os.path.join(out, filename+"_gradient.jpg"))
@@ -42,12 +53,15 @@ def processImage(filename, data="./", out="./"):
 """
 Adds zero padding to the input image
 """
+
+
 def zeroPadImage(img, rowPadding, colPadding):
     shape = np.shape(img)
-    rows = shape[0] + 2 * rowPadding 
+    rows = shape[0] + 2 * rowPadding
     cols = shape[1] + 2 * colPadding
     paddedImg = np.zeros((rows, cols))
-    paddedImg[rowPadding: rowPadding + shape[0], colPadding: colPadding + shape[1]] = img
+    paddedImg[rowPadding: rowPadding + shape[0],
+              colPadding: colPadding + shape[1]] = img
     return paddedImg
 
 
@@ -55,10 +69,12 @@ def zeroPadImage(img, rowPadding, colPadding):
 Adds padding to the image by filling the padded regions with the values of
 the closest image pixels.
 """
+
+
 def padImage(img, rowPadding, colPadding):
     shape = np.shape(img)
-    rows = shape[0] + 2 * rowPadding # pad on top and bottom
-    cols = shape[1] + 2 * colPadding # pad on the left and on the right
+    rows = shape[0] + 2 * rowPadding  # pad on top and bottom
+    cols = shape[1] + 2 * colPadding  # pad on the left and on the right
 
     paddedImg = np.zeros((rows, cols))
 
@@ -74,18 +90,19 @@ def padImage(img, rowPadding, colPadding):
 
     # top
     paddedImg[0:rowPadding, 0:colPadding] = top_left
-    paddedImg[0:rowPadding, colPadding :colPadding + shape[1]] = top
+    paddedImg[0:rowPadding, colPadding:colPadding + shape[1]] = top
     paddedImg[0:rowPadding, colPadding + shape[1]:] = top_right
 
     # center
     paddedImg[rowPadding:rowPadding + shape[0], :colPadding] = left
-    paddedImg[rowPadding: rowPadding + shape[0], colPadding: colPadding + shape[1]] = img
+    paddedImg[rowPadding: rowPadding + shape[0],
+              colPadding: colPadding + shape[1]] = img
     paddedImg[rowPadding:rowPadding + shape[0], colPadding + shape[1]:] = right
 
     # bottom
     paddedImg[rowPadding+shape[0]:, :colPadding] = bottom_left
-    paddedImg[rowPadding+shape[0]:,colPadding:colPadding + shape[1]] = bottom
-    paddedImg[rowPadding+shape[0]:, colPadding+ shape[1]:] = bottom_right
+    paddedImg[rowPadding+shape[0]:, colPadding:colPadding + shape[1]] = bottom
+    paddedImg[rowPadding+shape[0]:, colPadding + shape[1]:] = bottom_right
 
     return paddedImg
 
@@ -96,6 +113,8 @@ The image should be a grayscale image (i.e. a 2D numpy array)
 and the provided kernel matrix h is assumed to have odd dimensions
 in both directions
 """
+
+
 def myImageFilter(img, h):
     # Padding values depend on the kernel dimensions
     hshape = np.shape(h)
@@ -108,15 +127,19 @@ def myImageFilter(img, h):
 
     for y in range(rowPadding, ishape[0] + rowPadding):
         for x in range(colPadding, ishape[1] + colPadding):
-            roi = padded[y - rowPadding:y + rowPadding + 1, x - colPadding:x + colPadding + 1]
+            roi = padded[y - rowPadding:y + rowPadding +
+                         1, x - colPadding:x + colPadding + 1]
             s = (roi * h).sum()
             output[y - rowPadding, x - colPadding] = s
     return output
+
 
 """
 Computes both the Gradient magnitude and the orientation for the provided greyscale image, 
 using 3x3 Sobel vertical and horizontal Kernels.
 """
+
+
 def getGradient(img):
     sobelx = getSobelHorizontalKernel()
     sobely = getSobelVerticalKernel()
@@ -126,10 +149,13 @@ def getGradient(img):
     orientation = np.arctan(gy/gx)
     return gradient, orientation
 
+
 """
 Computes both the Gradient magnitude for the provided greyscale image, 
 using 3x3 Sobel vertical and horizontal kernels.
 """
+
+
 def getGradientMagnitude(img):
     sobelx = getSobelHorizontalKernel()
     sobely = getSobelVerticalKernel()
@@ -138,10 +164,13 @@ def getGradientMagnitude(img):
     gradient = np.sqrt(np.square(gx) + np.square(gy))
     return gradient
 
+
 """
 Compute the gradient orientation for the provided greyscale image,
 using 3x3 Sobel vertical and horizontal kernels.
 """
+
+
 def getGradientOrientation(img):
     sobelx = getSobelHorizontalKernel()
     sobely = getSobelVerticalKernel()
@@ -156,6 +185,8 @@ Performs a naive non maxima suppression on the provided gradient matrix.
 Each gradient magnitude is tested against its 3x3 neighborhood and is removed, 
 if it is not the only occurence of the maximum value.
 """
+
+
 def naiveNonMaximaSuppression(gradient):
     shape = np.shape(gradient)
     pad = 3
@@ -165,7 +196,8 @@ def naiveNonMaximaSuppression(gradient):
         for x in range(pad, shape[1] + pad):
             roi = padded[y - pad:y + pad + 1, x - pad:x + pad + 1]
             max = np.max(roi)
-            count = np.count_nonzero(roi == max) # number of occurences of the max value
+            # number of occurences of the max value
+            count = np.count_nonzero(roi == max)
             if max != padded[y][x] or count > 1:
                 output[y-pad][x-pad] = 0
 
@@ -176,20 +208,25 @@ def naiveNonMaximaSuppression(gradient):
 The input angle value is assumed to be between 0 and 180°
 Returns the closest angle among (0, 45, 90, 135)
 """
+
+
 def getClosestOrientation(angle):
     angles = [0, 45, 90, 135, 180]
     # Find the index of the angle of minimum distance
     id = (np.abs(angles - angle)).argmin()
-    return angles[id] % 180 # if the closest is 180 => return 0
+    return angles[id] % 180  # if the closest is 180 => return 0
+
 
 """
 Performs non maxima suppression along a direction determined by discrete
 maping of the gradient orientation to 0, 45, 90 or 135 degrees
 """
+
+
 def discreteNonMaximaSuppression(gradient, orientation):
     shape = np.shape(gradient)
     deg = np.degrees(orientation)
-    deg = (deg + 180) % 180 # convert the orientation to 0 - 180° scale
+    deg = (deg + 180) % 180  # convert the orientation to 0 - 180° scale
     pad = 3
     output = np.copy(gradient)
     gradient = zeroPadImage(gradient, pad, pad)
@@ -211,31 +248,36 @@ def discreteNonMaximaSuppression(gradient, orientation):
             elif angle == 135:
                 a = gradient[y - 1][x - 1]
                 b = gradient[y + 1][x + 1]
-    
+
             if gradient[y][x] <= a or gradient[y][x] <= b:
                 output[y-pad][x-pad] = 0
 
     return output
 
+
 """
 Returns the 2D Gaussian Kernel corresponding to the provided standard deviation.
 The kernel is of size h x h, with h = 2 * ceil(3 * sigma) + 1
 """
+
+
 def getGaussianKernel(sigma):
     hsize = 2 * math.ceil(3 * sigma) + 1
     x = np.linspace(- (hsize//2), hsize // 2, hsize)
-    xy, yx = np.meshgrid(x, x) # returns 2 matrices of distances to the
-                                # center pixel on the x and y axis
+    xy, yx = np.meshgrid(x, x)  # returns 2 matrices of distances to the
+    # center pixel on the x and y axis
     ii = np.square(xy)
     jj = np.square(yx)
     kernel = np.exp(-0.5 * (ii + jj) / (sigma**2))
     kernel = kernel / (2 * math.pi * sigma**2)
-    return kernel 
+    return kernel
 
 
 """
 Returns a 2D 3x3 Horizontal Sobel Kernel
 """
+
+
 def getSobelHorizontalKernel():
     return np.array([
         [-1, 0, 1],
@@ -243,9 +285,12 @@ def getSobelHorizontalKernel():
         [-1, 0, 1]
     ])
 
+
 """
 Returns a 2D 3x3 Vertical Sobel Kernel
 """
+
+
 def getSobelVerticalKernel():
     return np.array([
         [1, 2, 1],
@@ -261,6 +306,7 @@ def main():
     for file in os.listdir(directory):
         filename = os.fsdecode(file)
         processImage(filename, data=DIR, out=OUT)
+
 
 if __name__ == "__main__":
     main()
