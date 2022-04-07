@@ -1,3 +1,4 @@
+from asyncore import write
 import sys
 import os
 import cv2 as cv
@@ -19,18 +20,30 @@ def processImage(filename, data="./", out="./"):
     print("Processing ", filename)
     if filename.endswith("jpg"):
         img0 = readImage(os.path.join(data, filename))
-        #print("Padding image for testing...")
-        #img1 = padImage(img0, 50, 50)
         
         h = getGaussianKernel(1)
 
         img1 = myImageFilter(img0, h)
         writeImage(img1, os.path.join(out, filename+"_my.jpg"))
 
-        img1 = cv.GaussianBlur(img0, (7, 7), 1)
-        writeImage(img1, os.path.join(out, filename+"_cv.jpg"))
+        sobelx = getSobelHorizontalKernel()
+        sobely = getSobelVerticalKernel()
+        gx = myImageFilter(img1, sobelx)
+        writeImage(gx, os.path.join(out, filename+"_gx.jpg"))
+        gy = myImageFilter(img1, sobely)
+        writeImage(gy, os.path.join(out, filename+"_gy.jpg"))       
+
+        gradient, orientation = getGradient(img1)
+        writeImage(gradient, os.path.join(out, filename+"_gradient.jpg"))
+        nms = naiveNonMaximaSuppression(gradient)
+        writeImage(nms, os.path.join(out, filename+"_nms.jpg"))
+        dnms = discreteNonMaximaSuppression(gradient, orientation)
+        writeImage(dnms, os.path.join(out, filename+"_nms2.jpg"))
 
 
+"""
+Adds zero padding to the input image
+"""
 def zeroPadImage(img, rowPadding, colPadding):
     shape = np.shape(img)
     rows = shape[0] + 2 * rowPadding 
@@ -39,6 +52,11 @@ def zeroPadImage(img, rowPadding, colPadding):
     paddedImg[rowPadding: rowPadding + shape[0], colPadding: colPadding + shape[1]] = img
     return paddedImg
 
+
+"""
+Adds padding to the image by filling the padded regions with the values of
+the closest image pixels.
+"""
 def padImage(img, rowPadding, colPadding):
     shape = np.shape(img)
     rows = shape[0] + 2 * rowPadding # pad on top and bottom
@@ -97,6 +115,114 @@ def myImageFilter(img, h):
             output[y - rowPadding, x - colPadding] = s
     return output
 
+"""
+Computes both the Gradient magnitude and the orientation for the provided greyscale image, 
+using 3x3 Sobel vertical and horizontal Kernels.
+"""
+def getGradient(img):
+    sobelx = getSobelHorizontalKernel()
+    sobely = getSobelVerticalKernel()
+    gx = myImageFilter(img, sobelx)
+    gy = myImageFilter(img, sobely)
+    gradient = np.sqrt(np.square(gx) + np.square(gy))
+    orientation = np.arctan(gy/gx)
+    return gradient, orientation
+
+"""
+Computes both the Gradient magnitude for the provided greyscale image, 
+using 3x3 Sobel vertical and horizontal kernels.
+"""
+def getGradientMagnitude(img):
+    sobelx = getSobelHorizontalKernel()
+    sobely = getSobelVerticalKernel()
+    gx = myImageFilter(img, sobelx)
+    gy = myImageFilter(img, sobely)
+    gradient = np.sqrt(np.square(gx) + np.square(gy))
+    return gradient
+
+"""
+Compute the gradient orientation for the provided greyscale image,
+using 3x3 Sobel vertical and horizontal kernels.
+"""
+def getGradientOrientation(img):
+    sobelx = getSobelHorizontalKernel()
+    sobely = getSobelVerticalKernel()
+    gx = myImageFilter(img, sobelx)
+    gy = myImageFilter(img, sobely)
+    orientation = np.arctan(gy/gx)
+    return orientation
+
+
+"""
+Performs a naive non maxima suppression on the provided gradient matrix.
+Each gradient magnitude is tested against its 3x3 neighborhood and is removed, 
+if it is not the only occurence of the maximum value.
+"""
+def naiveNonMaximaSuppression(gradient):
+    shape = np.shape(gradient)
+    pad = 3
+    padded = zeroPadImage(gradient, pad, pad)
+    output = np.copy(gradient)
+    for y in range(pad, shape[0] + pad):
+        for x in range(pad, shape[1] + pad):
+            roi = padded[y - pad:y + pad + 1, x - pad:x + pad + 1]
+            max = np.max(roi)
+            count = np.count_nonzero(roi == max) # number of occurences of the max value
+            if max != padded[y][x] or count > 1:
+                output[y-pad][x-pad] = 0
+
+    return output
+
+
+"""
+The input angle value is assumed to be between 0 and 180°
+Returns the closest angle among (0, 45, 90, 135)
+"""
+def getClosestOrientation(angle):
+    angles = [0, 45, 90, 135, 180]
+    # Find the index of the angle of minimum distance
+    id = (np.abs(angles - angle)).argmin()
+    return angles[id] % 180 # if the closest is 180 => return 0
+
+"""
+Performs non maxima suppression along a direction determined by discrete
+maping of the gradient orientation to 0, 45, 90 or 135 degrees
+"""
+def discreteNonMaximaSuppression(gradient, orientation):
+    shape = np.shape(gradient)
+    deg = np.degrees(orientation)
+    deg = (deg + 180) % 180 # convert the orientation to 0 - 180° scale
+    pad = 3
+    output = np.copy(gradient)
+    gradient = zeroPadImage(gradient, pad, pad)
+
+    for y in range(pad, shape[0] + pad):
+        for x in range(pad, shape[1] + pad):
+            angle = getClosestOrientation(deg[y-pad][x-pad])
+            a = 0
+            b = 0
+            if angle == 0:
+                a = gradient[y][x-1]
+                b = gradient[y][x+1]
+            elif angle == 90:
+                a = gradient[y-1][x]
+                b = gradient[y+1][x]
+            elif angle == 45:
+                a = gradient[y + 1][x - 1]
+                b = gradient[y - 1][x + 1]
+            elif angle == 135:
+                a = gradient[y - 1][x - 1]
+                b = gradient[y + 1][x + 1]
+    
+            if gradient[y][x] <= a or gradient[y][x] <= b:
+                output[y-pad][x-pad] = 0
+
+    return output
+
+"""
+Returns the 2D Gaussian Kernel corresponding to the provided standard deviation.
+The kernel is of size h x h, with h = 2 * ceil(3 * sigma) + 1
+"""
 def getGaussianKernel(sigma):
     hsize = 2 * math.ceil(3 * sigma) + 1
     x = np.linspace(- (hsize//2), hsize // 2, hsize)
@@ -107,6 +233,28 @@ def getGaussianKernel(sigma):
     kernel = np.exp(-0.5 * (ii + jj) / (sigma**2))
     kernel = kernel / (2 * math.pi * sigma**2)
     return kernel 
+
+
+"""
+Returns a 2D 3x3 Horizontal Sobel Kernel
+"""
+def getSobelHorizontalKernel():
+    return np.array([
+        [-1, 0, 1],
+        [-2, 0, 2],
+        [-1, 0, 1]
+    ])
+
+"""
+Returns a 2D 3x3 Vertical Sobel Kernel
+"""
+def getSobelVerticalKernel():
+    return np.array([
+        [1, 2, 1],
+        [0, 0, 0],
+        [-1, -2, -1]
+    ])
+
 
 def main():
     DIR = "./dataset"
