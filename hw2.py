@@ -2,7 +2,7 @@ import sys
 import os
 import cv2 as cv
 import numpy as np
-
+import math
 
 def checkIfFileExists(filename):
     return os.path.isfile(filename)
@@ -22,15 +22,22 @@ def processImage(filename, data="./", out="./"):
         #print("Padding image for testing...")
         #img1 = padImage(img0, 50, 50)
         
-        h = np.ones((3, 3)) * 1/9
-        # 3 * 3 median filter
+        h = getGaussianKernel(1)
 
         img1 = myImageFilter(img0, h)
         writeImage(img1, os.path.join(out, filename+"_my.jpg"))
 
-        img1 = cv.blur(img0, (3, 3))
-        writeImage(img1, os.path.join(out, filename+"_median.jpg"))
+        img1 = cv.GaussianBlur(img0, (7, 7), 1)
+        writeImage(img1, os.path.join(out, filename+"_cv.jpg"))
 
+
+def zeroPadImage(img, rowPadding, colPadding):
+    shape = np.shape(img)
+    rows = shape[0] + 2 * rowPadding 
+    cols = shape[1] + 2 * colPadding
+    paddedImg = np.zeros((rows, cols))
+    paddedImg[rowPadding: rowPadding + shape[0], colPadding: colPadding + shape[1]] = img
+    return paddedImg
 
 def padImage(img, rowPadding, colPadding):
     shape = np.shape(img)
@@ -77,21 +84,29 @@ def myImageFilter(img, h):
     # Padding values depend on the kernel dimensions
     hshape = np.shape(h)
     ishape = np.shape(img)
-    rowPadding = int((hshape[0] - 1) / 2)
-    colPadding = int((hshape[1] - 1) / 2)
+    rowPadding = hshape[0] // 2
+    colPadding = hshape[1] // 2
     padded = padImage(img, rowPadding, colPadding)
 
     output = np.zeros(ishape)
 
     for y in range(rowPadding, ishape[0] + rowPadding):
         for x in range(colPadding, ishape[1] + colPadding):
-
             roi = padded[y - rowPadding:y + rowPadding + 1, x - colPadding:x + colPadding + 1]
             s = (roi * h).sum()
             output[y - rowPadding, x - colPadding] = s
     return output
 
-
+def getGaussianKernel(sigma):
+    hsize = 2 * math.ceil(3 * sigma) + 1
+    x = np.linspace(- (hsize//2), hsize // 2, hsize)
+    xy, yx = np.meshgrid(x, x) # returns 2 matrices of distances to the
+                                # center pixel on the x and y axis
+    ii = np.square(xy)
+    jj = np.square(yx)
+    kernel = np.exp(-0.5 * (ii + jj) / (sigma**2))
+    kernel = kernel / (2 * math.pi * sigma**2)
+    return kernel 
 
 def main():
     DIR = "./dataset"
@@ -103,14 +118,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    """
-    img = np.array([
-                    [1, 2, 3],
-                    [4, 5, 6],
-                    [1, 2, 3]])
-
-    h = np.ones((3, 3)) * 1/9
-
-    img1 = myImageFilter(img, h)
-    print(img1)
-    """
