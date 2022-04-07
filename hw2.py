@@ -1,5 +1,3 @@
-from asyncore import write
-import sys
 import os
 import cv2 as cv
 import numpy as np
