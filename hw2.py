@@ -13,10 +13,6 @@ import numpy as np
 import math
 
 
-def checkIfFileExists(filename):
-    return os.path.isfile(filename)
-
-
 def readImage(filename):
     return cv.imread(filename, cv.IMREAD_GRAYSCALE)
 
@@ -26,29 +22,51 @@ def writeImage(img, filename):
 
 
 def processImage(filename, data="./", out="./"):
-    print("Processing ", filename)
+    print("-------------------------")
+    print(f"Processing {filename}...")
     if filename.endswith("jpg"):
         img0 = readImage(os.path.join(data, filename))
 
+        print(" Applying Gaussian smoothing")
         h = getGaussianKernel(1)
-
         img1 = myImageFilter(img0, h)
-        writeImage(img1, os.path.join(out, filename+"_my.jpg"))
+        writeImage(img1, os.path.join(out, filename+"_smoothed.jpg"))
 
+        print(" Applying Sobel filters")
         sobelx = getSobelHorizontalKernel()
         sobely = getSobelVerticalKernel()
         gx = myImageFilter(img1, sobelx)
-        writeImage(gx, os.path.join(out, filename+"_gx.jpg"))
+        writeImage(gx, os.path.join(out, filename+"_sobelx.jpg"))
         gy = myImageFilter(img1, sobely)
-        writeImage(gy, os.path.join(out, filename+"_gy.jpg"))
+        writeImage(gy, os.path.join(out, filename+"_sobely.jpg"))
 
+        print(" Computing gradient magnitude")
         gradient, orientation = getGradient(img1)
         writeImage(gradient, os.path.join(out, filename+"_gradient.jpg"))
+
+        print(" Applying naïve non-maxima suppression")
         nms = naiveNonMaximaSuppression(gradient)
         writeImage(nms, os.path.join(out, filename+"_nms.jpg"))
+
+        print(" Applying discrete non-maxima suppression")
         dnms = discreteNonMaximaSuppression(gradient, orientation)
         writeImage(dnms, os.path.join(out, filename+"_nms2.jpg"))
 
+
+"""
+Computes the gradient magnitude and orientation for the input image.
+It first applies Gaussian smoothing with the provided standard deviation sigma.
+Then computes gradient magnitude and orientation, and finally a non-maxima 
+suppression.
+"""
+
+
+def myEdgeFilter(img, sigma):
+    h = getGaussianKernel(sigma)
+    img1 = myImageFilter(img, h)
+    gradient, orientation = getGradient(img1)
+    dnms = discreteNonMaximaSuppression(gradient, orientation)
+    return dnms
 
 """
 Adds zero padding to the input image
@@ -89,9 +107,9 @@ def padImage(img, rowPadding, colPadding):
     bottom_right = np.ones((rowPadding, colPadding)) * img[-1][-1]
 
     # top
-    paddedImg[0:rowPadding, 0:colPadding] = top_left
-    paddedImg[0:rowPadding, colPadding:colPadding + shape[1]] = top
-    paddedImg[0:rowPadding, colPadding + shape[1]:] = top_right
+    paddedImg[:rowPadding, :colPadding] = top_left
+    paddedImg[:rowPadding, colPadding:colPadding + shape[1]] = top
+    paddedImg[:rowPadding, colPadding + shape[1]:] = top_right
 
     # center
     paddedImg[rowPadding:rowPadding + shape[0], :colPadding] = left
@@ -127,9 +145,9 @@ def myImageFilter(img, h):
 
     for y in range(rowPadding, ishape[0] + rowPadding):
         for x in range(colPadding, ishape[1] + colPadding):
-            roi = padded[y - rowPadding:y + rowPadding +
+            window = padded[y - rowPadding:y + rowPadding +
                          1, x - colPadding:x + colPadding + 1]
-            s = (roi * h).sum()
+            s = (window * h).sum()
             output[y - rowPadding, x - colPadding] = s
     return output
 
@@ -146,6 +164,7 @@ def getGradient(img):
     gx = myImageFilter(img, sobelx)
     gy = myImageFilter(img, sobely)
     gradient = np.sqrt(np.square(gx) + np.square(gy))
+    gx[np.where(gx == 0)] = 1 # Approximate zero values to 1 before computing gy/gx
     orientation = np.arctan(gy/gx)
     return gradient, orientation
 
@@ -176,6 +195,7 @@ def getGradientOrientation(img):
     sobely = getSobelVerticalKernel()
     gx = myImageFilter(img, sobelx)
     gy = myImageFilter(img, sobely)
+    gx[np.where(gx == 0)] = 1 # Approximate zero values to 1 before computing gy / gx
     orientation = np.arctan(gy/gx)
     return orientation
 
@@ -303,6 +323,8 @@ def main():
     DIR = "./dataset"
     OUT = "./out"  # intermediate output images directory
     directory = os.fsencode(DIR)
+    if not os.path.exists(OUT):
+        os.makedirs(OUT)
     for file in os.listdir(directory):
         filename = os.fsdecode(file)
         processImage(filename, data=DIR, out=OUT)
